@@ -6,6 +6,10 @@
 # dotenv files
 .env
 
+# .NET build output
+**/bin/
+**/obj/
+
 # User-specific files
 *.rsuser
 *.suo
