@@ -1,26 +1,46 @@
+using BuildingBlocks.Messaging;
+using BuildingBlocks.Observability;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// --- Platform services ---
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Observability & messaging (safe no-ops until you wire them)
+builder.Services.AddFinPayObservability(builder.Configuration);
+builder.Services.AddFinPayMessaging(builder.Configuration);
+
+// Health checks + CORS (dev-friendly)
+builder.Services.AddHealthChecks();
+builder.Services.AddCors(opt =>
+{
+    opt.AddPolicy("AllowAllDev", p =>
+        p.AllowAnyOrigin()
+         .AllowAnyHeader()
+         .AllowAnyMethod());
+});
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// --- Middleware pipeline ---
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// For local dev, keep HTTPS redirection off unless you bind https as well
+// app.UseHttpsRedirection();
 
+app.UseCors("AllowAllDev");
+
+// --- Minimal endpoints ---
+app.MapGet("/", () => Results.Ok("MerchantService is up"));
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-app.Run();
+// Liveness/readiness (same as /health for now; you can evolve later)
+app.MapHealthChecks("/health/live");
+app.MapHealthChecks("/health/ready");
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+app.Run();
