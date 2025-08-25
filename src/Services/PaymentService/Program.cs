@@ -8,6 +8,7 @@ using PaymentService.Contracts;
 using PaymentService.Domain;
 using PaymentService.Infrastructure;
 using PaymentService.Infrastructure.Outbox;
+using PaymentService.Consumers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +18,10 @@ builder.Services.AddSwaggerGen();
 
 // observability + messaging
 builder.Services.AddFinPayObservability(builder.Configuration);
-builder.Services.AddFinPayMessaging(builder.Configuration);
+builder.Services.AddFinPayMessaging(builder.Configuration, x =>
+{
+    x.AddConsumer<FraudAssessedConsumer>();
+});
 
 // db
 var conn = builder.Configuration.GetConnectionString("Default")
