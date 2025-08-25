@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using PaymentService.Contracts;
 using PaymentService.Domain;
 using PaymentService.Infrastructure;
+using PaymentService.Infrastructure.Outbox;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,10 +21,11 @@ builder.Services.AddFinPayMessaging(builder.Configuration);
 
 // db
 var conn = builder.Configuration.GetConnectionString("Default")
-           ?? "Server=localhost;Port=3306;Database=FinPay_Payments;User Id=finpay;Password=finpaypwd;";
+           ?? "Server=localhost;Port=3306;Database=FinPay_Payment;User Id=finpay;Password=finpaypwd;";
 builder.Services.AddDbContext<PaymentDbContext>(opt =>
     opt.UseMySql(conn, ServerVersion.AutoDetect(conn)));
 
+builder.Services.AddHostedService<OutboxDispatcher>();
 builder.Services.AddHealthChecks();
 builder.Services.AddCors(o => o.AddPolicy("AllowAllDev", p => p.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin()));
 
@@ -65,8 +67,19 @@ app.MapPost("/", async (CreatePaymentDto dto, PaymentDbContext db, IPublishEndpo
     db.Payments.Add(payment);
     await db.SaveChangesAsync();
 
-    await bus.Publish(new PaymentInitiatedV1(
-        payment.PaymentId, payment.MerchantId, payment.Amount, payment.Currency, payment.Method, DateTime.UtcNow));
+    // build the event
+    var evt = new PaymentInitiatedV1(
+        payment.PaymentId, payment.MerchantId, payment.Amount, payment.Currency, payment.Method, DateTime.UtcNow);
+
+    // save to Outbox (assembly-qualified type name + JSON payload)
+    db.OutboxMessages.Add(new OutboxMessage
+    {
+        Type = typeof(PaymentInitiatedV1).AssemblyQualifiedName!,
+        Payload = System.Text.Json.JsonSerializer.Serialize(evt),
+        OccurredOnUtc = DateTime.UtcNow
+    });
+
+    await db.SaveChangesAsync();
 
     return Results.Created($"/{payment.PaymentId}", new { payment.PaymentId, payment.Status });
 })
