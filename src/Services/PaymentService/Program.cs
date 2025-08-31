@@ -9,6 +9,7 @@ using PaymentService.Domain;
 using PaymentService.Infrastructure;
 using PaymentService.Infrastructure.Outbox;
 using PaymentService.Consumers;
+using PaymentService.Infrastructure.Capture;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,6 +31,8 @@ builder.Services.AddDbContext<PaymentDbContext>(opt =>
     opt.UseMySql(conn, ServerVersion.AutoDetect(conn)));
 
 builder.Services.AddHostedService<OutboxDispatcher>();
+builder.Services.AddHostedService<CaptureWorker>();
+
 builder.Services.AddHealthChecks();
 builder.Services.AddCors(o => o.AddPolicy("AllowAllDev", p => p.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin()));
 
